@@ -3855,7 +3855,7 @@ void handleEvent(AceButton* button, uint8_t eventType,
           display->setCursor(x, y);
           display->print(msg_line);
           
-          msg_line = "press menu button";
+          msg_line = "press any button";
           display->getTextBounds(msg_line, 0, 0, &tbx, &tby, &tbw, &tbh);
           x = (display->width() - tbw) / 2;
           y = (2 * display->height()) / 3 + 36;
