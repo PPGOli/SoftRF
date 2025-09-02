@@ -5047,6 +5047,11 @@ static void ESP32_Display_loop()
 
 static void ESP32_Display_fini(int reason)
 {
+  // Set screen_saver for low battery shutdowns to trigger screensaver-style display
+  if (reason == SOFTRF_SHUTDOWN_LOWBAT) {
+    screen_saver = true;
+  }
+
   switch (hw_info.display)
   {
 #if defined(USE_OLED)

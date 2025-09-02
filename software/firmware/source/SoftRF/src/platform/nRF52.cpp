@@ -137,7 +137,8 @@ const char *Hardware_Rev[] = {
   [0] = "2020-8-6",
   [1] = "2020-12-12",
   [2] = "2021-3-26",
-  [3] = "Unknown"
+  [3] = "Unknown",
+  [4] = "TN-M1"
 };
 
 const prototype_entry_t techo_prototype_boards[] = {
@@ -238,6 +239,23 @@ static const char TX_text[]       = "TX";
 #endif /* USE_OLED */
 
 static bool TFT_display_frontpage = false;
+
+// Global variable to track if shutdown should show screen saver message
+static bool shutdown_screen_saver = false;
+
+// Backlight polarity helpers: Thinknode M1 uses normal logic (HIGH=ON)
+static inline bool m1_backlight_inverted() { return nRF52_board == NRF52_ELECROW_TN_M1; }
+static inline void epd_bl_set(bool on) {
+  if (m1_backlight_inverted()) {
+    digitalWrite(SOC_GPIO_PIN_EPD_BLGT, on ? HIGH : LOW);
+  } else {
+    digitalWrite(SOC_GPIO_PIN_EPD_BLGT, on ? HIGH : LOW);
+  }
+}
+static inline bool epd_bl_is_on() {
+  int v = digitalRead(SOC_GPIO_PIN_EPD_BLGT);
+  return m1_backlight_inverted() ? (v == HIGH) : (v == HIGH);
+}
 
 static void TFT_off()
 {
@@ -1082,6 +1100,13 @@ static void nRF52_setup()
       hw_info.model      = SOFTRF_MODEL_HANDHELD;
       nRF52_Device_Model = "Handheld Edition";
 
+      /* Ensure EPD backlight is OFF at earliest board identification stage (M1 normal logic) */
+      if (SOC_GPIO_PIN_EPD_BLGT != SOC_UNUSED_PIN) {
+        pinMode(SOC_GPIO_PIN_EPD_BLGT, OUTPUT);
+        // Normal: HIGH = ON -> write LOW for OFF
+        digitalWrite(SOC_GPIO_PIN_EPD_BLGT, LOW);
+      }
+
       if (reset_reason & POWER_RESETREAS_VBUS_Msk) {
         NRF_POWER->GPREGRET = DFU_MAGIC_SKIP;
         pinMode(SOC_GPIO_PIN_IO_PWR, INPUT);
@@ -1429,7 +1454,7 @@ static void nRF52_setup()
       lmic_pins.rst  = SOC_GPIO_PIN_M1_RST;
       lmic_pins.busy = SOC_GPIO_PIN_M1_BUSY;
 
-      hw_info.revision = 3; /* Unknown */
+      hw_info.revision = 4; /* TN-M1 */
       break;
 
     case NRF52_SEEED_WIO_L1:
@@ -3218,10 +3243,9 @@ static byte nRF52_Display_setup()
       rval = DISPLAY_EPD_1_54;
     }
 
-    /* EPD back light off */
-    pinMode(SOC_GPIO_PIN_EPD_BLGT, OUTPUT);
-    digitalWrite(SOC_GPIO_PIN_EPD_BLGT, nRF52_board == NRF52_ELECROW_TN_M1 ?
-                                        HIGH : LOW);
+  /* EPD back light off (abstract polarity) */
+  pinMode(SOC_GPIO_PIN_EPD_BLGT, OUTPUT);
+  epd_bl_set(false);
 #endif /* USE_EPAPER */
   }
 
@@ -3381,12 +3405,17 @@ static void nRF52_Display_loop()
 
 static void nRF52_Display_fini(int reason)
 {
+  // Set shutdown_screen_saver to true for low battery shutdowns
+  if (reason == SOFTRF_SHUTDOWN_LOWBAT) {
+    shutdown_screen_saver = true;
+  }
+
   switch (hw_info.display)
   {
 #if defined(USE_EPAPER)
   case DISPLAY_EPD_1_54:
 
-    EPD_fini(reason, screen_saver);
+    EPD_fini(reason, shutdown_screen_saver);
 
 #if defined(USE_EPD_TASK)
     if( EPD_Task_Handle != NULL )
@@ -3697,6 +3726,10 @@ AceButton button_2(SOC_GPIO_PIN_PAD);
 void handleEvent(AceButton* button, uint8_t eventType,
     uint8_t buttonState) {
 
+  // Variable to track screen saver state
+  static bool screen_saver = false;
+  extern bool screen_off;  // Reference to EPD.cpp's screen_off variable
+
   switch (eventType) {
     case AceButton::kEventClicked:
     case AceButton::kEventReleased:
@@ -3709,9 +3742,24 @@ void handleEvent(AceButton* button, uint8_t eventType,
           Serial.println(F("kEventReleased."));
         }
 #endif
-        EPD_Mode();
+        // Wake up from screen saver only on button click, not release
+        if (screen_saver && eventType == AceButton::kEventClicked) {
+          screen_saver = false;
+          screen_off = false;
+          return;  // Don't process other actions when waking up
+        }
+        if (!screen_saver) {  // Only process EPD_Mode if not in screen saver
+          EPD_Mode();
+        }
       } else if (button == &button_2) {
-        EPD_Up();
+        // Wake up from screen saver only on button click, not release
+        if (screen_saver && eventType == AceButton::kEventClicked) {
+          screen_saver = false;
+          screen_off = false;
+          return;  // Don't process other actions when waking up
+        }
+        if (! screen_saver)    // Only respond to button_2 if not in screen saver mode
+          EPD_Up();
       }
 #endif /* USE_EPAPER */
 #if defined(USE_OLED)
@@ -3726,8 +3774,7 @@ void handleEvent(AceButton* button, uint8_t eventType,
 #if defined(USE_EPAPER)
       if (button == &button_1) {
 //        Serial.println(F("kEventDoubleClicked."));
-        digitalWrite(SOC_GPIO_PIN_EPD_BLGT,
-                     digitalRead(SOC_GPIO_PIN_EPD_BLGT) == LOW);
+  epd_bl_set(!epd_bl_is_on());
       }
 #endif
       break;
@@ -3756,13 +3803,71 @@ void handleEvent(AceButton* button, uint8_t eventType,
             break;
         }
 
+        // Check if PAD (up_button) is also pressed during MENU long press
         if (up_button_pin >= 0 && digitalRead(up_button_pin) == LOW) {
+          // Long press BOTH buttons together - shutdown with screensaver message
+          static bool shutdown_initiated = false;
+          if (!shutdown_initiated) {
+            shutdown_screen_saver = true;  // Set global variable for Display_fini
+            
+            if (SOC_GPIO_PIN_BUZZER != SOC_UNUSED_PIN && settings->volume != BUZZER_OFF) {
+              tone(SOC_GPIO_PIN_BUZZER, 1200, 120);
+              delay(130);
+              tone(SOC_GPIO_PIN_BUZZER, 900, 120);
+              delay(130);
+            }
+            shutdown_initiated = true;
+            shutdown(SOFTRF_SHUTDOWN_BUTTON);
+          }
+        } else {
+          // Long press MENU button alone - screensaver ONLY (no shutdown)
           screen_saver = true;
+          screen_off = true;  // Turn off screen completely
+          
+          // Show screensaver message
+          int16_t tbx, tby;
+          uint16_t tbw, tbh;
+          uint16_t x, y;
+          
+          display->fillScreen(GxEPD_WHITE);
+          
+          // "SCREENSAVER" in same font as shutdown message main title
+          display->setFont(&FreeMonoBold12pt7b);
+          display->getTextBounds("SCREENSAVER", 0, 0, &tbx, &tby, &tbw, &tbh);
+          x = (display->width() - tbw) / 2;
+          y = display->height() / 3;
+          display->setCursor(x, y);
+          display->print("SCREENSAVER");
+          
+          // Instruction text in same font as shutdown message instructions
+          display->setFont(&FreeMonoBoldOblique9pt7b);
+          const char *msg_line = "To activate the display again";
+          display->getTextBounds(msg_line, 0, 0, &tbx, &tby, &tbw, &tbh);
+          x = (display->width() - tbw) / 2;
+          y = (2 * display->height()) / 3;
+          display->setCursor(x, y);
+          display->print(msg_line);
+          
+          msg_line = "please press menu button";
+          display->getTextBounds(msg_line, 0, 0, &tbx, &tby, &tbw, &tbh);
+          x = (display->width() - tbw) / 2;
+          y = (2 * display->height()) / 3 + 20;
+          display->setCursor(x, y);
+          display->print(msg_line);
+          
+          display->display(false);  // Update display
+          delay(2000);  // Show message
+          
+          // Now blank the screen completely
+          display->fillScreen(GxEPD_WHITE);
+          display->display(true);  // Force display update
         }
 #endif
-
-        shutdown(SOFTRF_SHUTDOWN_BUTTON);
-        Serial.println(F("This will never be printed."));
+      } else if (button == &button_2) {
+        // Long press PAD alone - do nothing (no action)
+#if defined(USE_EPAPER)
+        // No action for single PAD button long press
+#endif
       }
       break;
   }

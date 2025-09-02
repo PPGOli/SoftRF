@@ -21,6 +21,7 @@
 #if defined(USE_EPAPER)
 
 #include "EPD.h"
+#include "SleepIcon.h"
 #include "LED.h"
 #include "RF.h"
 #include "Baro.h"
@@ -56,6 +57,7 @@ const char EPD_IMU_text[]     = "IMU   ";
 unsigned long EPDTimeMarker = 0;
 static unsigned long EPD_anti_ghosting_timer = 0;
 static uint8_t anti_ghosting_minutes = 0;
+bool screen_off = false;  // Remove static so it can be accessed from other files
 
 static int EPD_view_mode = 0;
 bool EPD_vmode_updated = true;
@@ -154,9 +156,9 @@ bool EPD_setup(bool splash_screen)
   }
 
   char buf[32];
-  snprintf(buf, sizeof(buf), "HW: %s SW: %s", hw_info.revision > 2 ?
-                Hardware_Rev[3] : Hardware_Rev[hw_info.revision],
-                SOFTRF_FIRMWARE_VERSION);
+  snprintf(buf, sizeof(buf), "HW: %s SW: %s", 
+           (hw_info.revision <= 4) ? Hardware_Rev[hw_info.revision] : Hardware_Rev[3],
+           SOFTRF_FIRMWARE_VERSION);
 
   display->setFont(&Org_01);
   display->getTextBounds(buf, 0, 0, &tbx4, &tby4, &tbw4, &tbh4);
@@ -488,6 +490,9 @@ void EPD_info2(int acfts, char *reg, char *mam, char *cn)
 
 void EPD_loop()
 {
+  if (screen_off)    // in screen-saver mode
+      return;
+
   switch (hw_info.display)
   {
   case DISPLAY_EPD_1_54:
@@ -595,13 +600,13 @@ void EPD_fini(int reason, bool screen_saver)
     }
 #endif /* EPD_ASPECT_RATIO_2C1 */
 
-    if (screen_saver) {
+    if (screen_saver || reason == SOFTRF_SHUTDOWN_LOWBAT) {
       const char *msg_line;
 
       display->setFont(&FreeMonoBold12pt7b);
       display->fillScreen(GxEPD_WHITE);
 
-      msg_line = "POWER OFF";
+      msg_line = (reason == SOFTRF_SHUTDOWN_LOWBAT ? "LOW BATTERY" : "SHUTTING DOWN");
 
       display->getTextBounds(msg_line, 0, 0, &tbx, &tby, &tbw, &tbh);
       x = (display_width - tbw) / 2;
@@ -609,11 +614,22 @@ void EPD_fini(int reason, bool screen_saver)
       display->setCursor(x, y);
       display->print(msg_line);
 
-      msg_line = "SCREEN SAVER";
+      display->setFont(&FreeMonoBoldOblique9pt7b);  // Smaller font for the instruction
+      msg_line = "To turn the device on again";
 
       display->getTextBounds(msg_line, 0, 0, &tbx, &tby, &tbw, &tbh);
       x = (display_width - tbw) / 2;
       y = (2 * display_height) / 3;
+      display->setCursor(x, y);
+      display->print(msg_line);
+
+      msg_line = "please press menu button";
+
+      display->getTextBounds(msg_line, 0, 0, &tbx, &tby, &tbw, &tbh);
+      x = (display_width - tbw) / 2;
+      y = (2 * display_height) / 3 + 20;  // Add some spacing
+      display->setCursor(x, y);
+      display->print(msg_line);
       display->setCursor(x, y);
       display->print(msg_line);
 
@@ -639,7 +655,8 @@ void EPD_fini(int reason, bool screen_saver)
       display->fillScreen(GxEPD_WHITE);
 
     } else {
-
+      // Normal shutdown screen display commented out
+      /*
       display->fillScreen(GxEPD_WHITE);
 
       display->setFont(&FreeMonoBold12pt7b);
@@ -653,7 +670,7 @@ void EPD_fini(int reason, bool screen_saver)
       x = (display_width  - 128) / 2;
       y = (display_height - 128) / 2 - tbh / 2 + dy;
       display->drawBitmap(x, y, sleep_icon_128x128, 128, 128, GxEPD_BLACK);
-#endif /* EPD_ASPECT_RATIO_1C1 */
+#endif
 
       display->setFont(&Org_01);
       display->getTextBounds(EPD_SoftRF_text4, 0, 0, &tbx, &tby, &tbw, &tbh);
@@ -661,11 +678,11 @@ void EPD_fini(int reason, bool screen_saver)
 #if defined(EPD_ASPECT_RATIO_1C1)
       x =  5;
       y += 128 + 17 + dy;
-#endif /* EPD_ASPECT_RATIO_1C1 */
+#endif
 #if defined(EPD_ASPECT_RATIO_2C1)
       x = 30;
       y = (3 * display_height) / 4 + dy;
-#endif /* EPD_ASPECT_RATIO_2C1 */
+#endif
       display->setCursor(x, y);
       display->print(EPD_SoftRF_text4);
 
@@ -678,6 +695,7 @@ void EPD_fini(int reason, bool screen_saver)
       y += 21;
       display->setCursor(x, y);
       display->print(EPD_SoftRF_text6);
+      */
     }
 
 #if defined(USE_EPD_TASK)
