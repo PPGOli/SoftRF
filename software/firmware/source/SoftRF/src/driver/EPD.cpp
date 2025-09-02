@@ -615,7 +615,7 @@ void EPD_fini(int reason, bool screen_saver)
       display->print(msg_line);
 
       display->setFont(&FreeMonoBoldOblique9pt7b);  // Smaller font for the instruction
-      msg_line = "To turn the device on again";
+      msg_line = "To turn device";
 
       display->getTextBounds(msg_line, 0, 0, &tbx, &tby, &tbw, &tbh);
       x = (display_width - tbw) / 2;
@@ -623,13 +623,19 @@ void EPD_fini(int reason, bool screen_saver)
       display->setCursor(x, y);
       display->print(msg_line);
 
-      msg_line = "please press menu button";
+      msg_line = "on again";
 
       display->getTextBounds(msg_line, 0, 0, &tbx, &tby, &tbw, &tbh);
       x = (display_width - tbw) / 2;
-      y = (2 * display_height) / 3 + 20;  // Add some spacing
+      y = (2 * display_height) / 3 + 18;  // Add some spacing
       display->setCursor(x, y);
       display->print(msg_line);
+
+      msg_line = "press menu button";
+
+      display->getTextBounds(msg_line, 0, 0, &tbx, &tby, &tbw, &tbh);
+      x = (display_width - tbw) / 2;
+      y = (2 * display_height) / 3 + 36;  // Add more spacing for third line
       display->setCursor(x, y);
       display->print(msg_line);
 

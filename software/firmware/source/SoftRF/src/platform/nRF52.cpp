@@ -3841,17 +3841,24 @@ void handleEvent(AceButton* button, uint8_t eventType,
           
           // Instruction text in same font as shutdown message instructions
           display->setFont(&FreeMonoBoldOblique9pt7b);
-          const char *msg_line = "To activate the display again";
+          const char *msg_line = "To activate";
           display->getTextBounds(msg_line, 0, 0, &tbx, &tby, &tbw, &tbh);
           x = (display->width() - tbw) / 2;
           y = (2 * display->height()) / 3;
           display->setCursor(x, y);
           display->print(msg_line);
           
-          msg_line = "please press menu button";
+          msg_line = "display again";
           display->getTextBounds(msg_line, 0, 0, &tbx, &tby, &tbw, &tbh);
           x = (display->width() - tbw) / 2;
-          y = (2 * display->height()) / 3 + 20;
+          y = (2 * display->height()) / 3 + 18;
+          display->setCursor(x, y);
+          display->print(msg_line);
+          
+          msg_line = "press menu button";
+          display->getTextBounds(msg_line, 0, 0, &tbx, &tby, &tbw, &tbh);
+          x = (display->width() - tbw) / 2;
+          y = (2 * display->height()) / 3 + 36;
           display->setCursor(x, y);
           display->print(msg_line);
           
