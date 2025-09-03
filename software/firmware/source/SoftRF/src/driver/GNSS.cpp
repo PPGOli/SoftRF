@@ -1390,7 +1390,7 @@ static bool at65_setup()
 #endif
 
   /* Assume that we deal with fake NEO module (AT6558 based) */
-  if (hw_info.model == SOFTRF_MODEL_BADGE)
+  if (hw_info.model == SOFTRF_MODEL_HANDHELD)
       Serial_GNSS_Out.write("$PCAS04,7*1E\r\n"); /* GPS + GLONASS + BEIDOU */
   else
       Serial_GNSS_Out.write("$PCAS04,5*1C\r\n"); /* GPS + GLONASS */     
@@ -1606,7 +1606,7 @@ byte GNSS_setup() {
   if (hw_info.model == SOFTRF_MODEL_PRIME_MK2 ||
       hw_info.model == SOFTRF_MODEL_PRIME_MK3 ||
       hw_info.model == SOFTRF_MODEL_UNI       ||
-      hw_info.model == SOFTRF_MODEL_BADGE     ||
+      hw_info.model == SOFTRF_MODEL_HANDHELD  ||
       hw_info.model == SOFTRF_MODEL_LEGO)
   {
     // power on by wakeup call

@@ -104,11 +104,11 @@ struct rst_info reset_info = {
 
 static uint32_t bootCount __attribute__ ((section (".noinit")));
 
-static nRF52_board_id nRF52_board = NRF52_LILYGO_TECHO_REV_2; /* default */
+nRF52_board_id nRF52_board = NRF52_LILYGO_TECHO_REV_2; /* default; now global (was static) */
 static nRF52_display_id nRF52_display = EP_UNKNOWN;
 
 const char *nRF52_Device_Manufacturer = SOFTRF_IDENT;
-const char *nRF52_Device_Model = "Badge Edition";
+const char *nRF52_Device_Model = "Handheld"; // renamed from "Badge Edition"
 const uint16_t nRF52_Device_Version = SOFTRF_USB_FW_VERSION;
 
 const char *Hardware_Rev[] = {
@@ -412,6 +412,11 @@ static void nRF52_setup()
     }
   }
 
+  /* If model set to HANDHELD (ThinkNode M1), override board id so generic macros map to M1 pins */
+  if (hw_info.model == SOFTRF_MODEL_HANDHELD) {
+    nRF52_board = NRF52_THINKNODE_M1;
+  }
+
   /* GPIO pins init */
   switch (nRF52_board)
   {
@@ -466,6 +471,26 @@ static void nRF52_setup()
 
       lmic_pins.rst = SOC_GPIO_PIN_TECHO_REV_2_RST;
       hw_info.revision = 2;
+      break;
+
+    case NRF52_THINKNODE_M1:
+      /* M1: Quectel L76K: wake (WKE high), hold RST high, optional SW line already defined as SOC_GPIO_PIN_GNSS_WKE/RST macros reused */
+      digitalWrite(SOC_GPIO_PIN_GNSS_WKE, HIGH); pinMode(SOC_GPIO_PIN_GNSS_WKE, OUTPUT);
+      digitalWrite(SOC_GPIO_PIN_GNSS_RST, HIGH); pinMode(SOC_GPIO_PIN_GNSS_RST, OUTPUT);
+
+      /* Use BLUE LED pin from M1 mapping (reuse PCA10059 blue as placeholder if needed) */
+      pinMode(SOC_GPIO_LED_TECHO_REV_2_GREEN, OUTPUT); // still using green placeholder until real mapping
+      ledOn (SOC_GPIO_LED_TECHO_REV_2_GREEN);
+
+      /* Buzzer */
+      if (SOC_GPIO_PIN_BUZZER != SOC_UNUSED_PIN) {
+        pinMode(SOC_GPIO_PIN_BUZZER, OUTPUT);
+        digitalWrite(SOC_GPIO_PIN_BUZZER, LOW);
+      }
+
+  /* Radio reset pin on M1 */
+  lmic_pins.rst = SOC_GPIO_PIN_M1_RST;
+      hw_info.revision = 10;
       break;
 
     case NRF52_NORDIC_PCA10059:
@@ -961,7 +986,11 @@ static void nRF52_fini(int reason)
   pinMode(lmic_pins.rst,  INPUT);
 
   // pinMode(SOC_GPIO_PIN_PAD,    INPUT);
-  pinMode(SOC_GPIO_PIN_BUTTON, nRF52_board == NRF52_LILYGO_TECHO_REV_1 ? INPUT_PULLUP : INPUT);
+  /* Button electrical: M1 buttons active LOW with pull-ups (P1.07=main, P1.10=PAD) */
+  pinMode(SOC_GPIO_PIN_BUTTON, (nRF52_board == NRF52_LILYGO_TECHO_REV_1 || nRF52_board == NRF52_THINKNODE_M1) ? INPUT_PULLUP : INPUT);
+  if (nRF52_board == NRF52_THINKNODE_M1) {
+    pinMode(SOC_GPIO_PIN_PAD, INPUT_PULLUP); // second button
+  }
   while (digitalRead(SOC_GPIO_PIN_BUTTON) == LOW);
   delay(100);
 
@@ -1509,12 +1538,12 @@ static float nRF52_Battery_param(uint8_t param)
   switch (param)
   {
   case BATTERY_PARAM_THRESHOLD:
-    rval = hw_info.model == SOFTRF_MODEL_BADGE ? BATTERY_THRESHOLD_LIPO   :
+  rval = hw_info.model == SOFTRF_MODEL_HANDHELD ? BATTERY_THRESHOLD_LIPO   :
                                                  BATTERY_THRESHOLD_NIMHX2;
     break;
 
   case BATTERY_PARAM_CUTOFF:
-    rval = hw_info.model == SOFTRF_MODEL_BADGE ? BATTERY_CUTOFF_LIPO   :
+  rval = hw_info.model == SOFTRF_MODEL_HANDHELD ? BATTERY_CUTOFF_LIPO   :
                                                  BATTERY_CUTOFF_NIMHX2;
     break;
 
@@ -1668,24 +1697,46 @@ void handleEvent(AceButton* button, uint8_t eventType,
 
     case AceButton::kEventLongPressed:
       if (button == &button_1) {
-
-#if defined(USE_EPAPER)
-            if (digitalRead(SOC_GPIO_PIN_PAD) == LOW)     // touch while long-press
-                screen_saver = true;
-            else
-                screen_saver = false;
-#endif
-            shutdown(SOFTRF_SHUTDOWN_BUTTON);
-            Serial.println(F("This too will never be printed."));
+            // Long press on main button alone: no action (avoid accidental power-off).
+            // If BOTH buttons are held (simultaneous long press) then shutdown with screensaver.
+            static bool shutdown_initiated = false;
+            if (digitalRead(SOC_GPIO_PIN_PAD) == LOW && !shutdown_initiated) {
+    #if defined(USE_EPAPER)
+              screen_saver = true; // request screensaver style shutdown page
+    #endif
+              if (SOC_GPIO_PIN_BUZZER != SOC_UNUSED_PIN && settings->volume != BUZZER_OFF) {
+                tone(SOC_GPIO_PIN_BUZZER, 1200, 120); // short confirmation beep
+                delay(130);
+                tone(SOC_GPIO_PIN_BUZZER, 900, 120);  // descending two-tone
+                delay(130);
+              }
+              shutdown_initiated = true;
+              shutdown(SOFTRF_SHUTDOWN_BUTTON);
+            }
 
 #if defined(USE_EPAPER)
       } else if (button == &button_2) {    // long touch
-          if (digitalRead(SOC_GPIO_PIN_BUTTON) != LOW) {    // long-touch without push
-            EPD_Message("SCREEN", "SAVER");
-            delay (1500);
-            screen_saver = true;             // ignore touch until mode button pressed
-            EPD_Message(NULL, NULL);         // blank the screen
-          }
+              static bool shutdown_initiated = false; // separate static inside this block scope
+              if (digitalRead(SOC_GPIO_PIN_BUTTON) == LOW) { // both buttons pressed
+                if (!shutdown_initiated) {
+                  screen_saver = true; // show screensaver variant on shutdown
+                  if (SOC_GPIO_PIN_BUZZER != SOC_UNUSED_PIN && settings->volume != BUZZER_OFF) {
+                    tone(SOC_GPIO_PIN_BUZZER, 1200, 120);
+                    delay(130);
+                    tone(SOC_GPIO_PIN_BUZZER, 900, 120);
+                    delay(130);
+                  }
+                  shutdown_initiated = true;
+                  shutdown(SOFTRF_SHUTDOWN_BUTTON);
+                }
+              } else { // single PAD long press = enter screensaver only
+                if (digitalRead(SOC_GPIO_PIN_BUTTON) != LOW) {    // long-touch without push
+                  EPD_Message("SCREEN", "SAVER");
+                  delay (1500);
+                  screen_saver = true;             // ignore touch until mode button pressed
+                  EPD_Message(NULL, NULL);         // blank the screen
+                }
+              }
 #endif
       }
       break;
@@ -1708,7 +1759,7 @@ static void nRF52_Button_setup()
   int up_button_pin   = SOC_GPIO_PIN_PAD;
 
   // Button(s) uses external pull up resistor.
-  pinMode(mode_button_pin, nRF52_board == NRF52_LILYGO_TECHO_REV_1 ? INPUT_PULLUP : INPUT);
+  pinMode(mode_button_pin, (nRF52_board == NRF52_LILYGO_TECHO_REV_1 || nRF52_board == NRF52_THINKNODE_M1) ? INPUT_PULLUP : INPUT);
   pinMode(up_button_pin, INPUT);
 
   button_1.init(mode_button_pin);

@@ -30,19 +30,22 @@
 #include "../system/Time.h"
 
 #include <gfxfont.h>
-#include <FreeMonoBold24pt7b.h>
-#include <FreeMonoBold18pt7b.h>
-#include <FreeMonoBold12pt7b.h>
-#include <FreeMonoBold9pt7b.h>
-#include <FreeMono18pt7b.h>
+/* Local font headers via relative path (minimal fix for missing include paths in Arduino build) */
+#include <Fonts/FreeMonoBold24pt7b.h>
+#include <Fonts/FreeMonoBold18pt7b.h>
+#include <Fonts/FreeMonoBold12pt7b.h>
+#include <Fonts/FreeMonoBold9pt7b.h>
+#include <Fonts/FreeMono18pt7b.h>
 
-#include <Org_01.h>
-#include <FreeMonoBoldOblique9pt7b.h>
-#include <FreeSerif9pt7b.h>
+#include <Fonts/Org_01.h>
+#include <Fonts/FreeMonoBoldOblique9pt7b.h>
+#include <Fonts/FreeSerif9pt7b.h>
 
 const char EPD_SoftRF_text1[] = "SoftRF";
-const char EPD_SoftRF_text2[] =  "and"  ;
-const char EPD_SoftRF_text3[] = "LilyGO";
+// Removed partner attribution strings for handheld splash screen
+// (original values: "and" / "LilyGO")
+const char EPD_SoftRF_text2[] =  "";  // intentionally blank
+const char EPD_SoftRF_text3[] = "";   // intentionally blank
 const char EPD_SoftRF_text4[] = "Author: ";
 const char EPD_SoftRF_text5[] = "Linar Yusupov";
 const char EPD_SoftRF_text6[] = "(C) 2016-2022";
@@ -120,7 +123,13 @@ bool EPD_setup(bool splash_screen)
 
   display->init( /* 38400 */ );
 
-  display->setRotation((3 + ui->rotate) & 0x3); /* 270 deg. is default angle */
+  /* Default TECHO orientation used 270deg baseline. Handheld (M1) physically rotated 90deg CW.
+     Apply +1 rotation step when on M1 board. */
+  uint8_t base_rot = 3; // legacy default
+  if (hw_info.model == SOFTRF_MODEL_HANDHELD) {
+    base_rot = (base_rot + 1) & 0x3; // rotate +90 deg for M1
+  }
+  display->setRotation((base_rot + ui->rotate) & 0x3);
   display->setTextColor(GxEPD_BLACK);
   display->setTextWrap(false);
 
@@ -132,44 +141,54 @@ bool EPD_setup(bool splash_screen)
 
   display->fillScreen(GxEPD_WHITE);
 
-  if (hw_info.model == SOFTRF_MODEL_BADGE) {
+  if (hw_info.model == SOFTRF_MODEL_HANDHELD) {
+    if (EPD_SoftRF_text2[0] == '\0' && EPD_SoftRF_text3[0] == '\0') {
+      // Simplified centered splash when partner strings removed
+      x = (display->width()  - tbw1) / 2;
+      y = (display->height() + tbh1) / 2; // baseline so text is vertically centered
+      display->setCursor(x, y);
+      display->print(EPD_SoftRF_text1);
 
-    x = (display->width()  - tbw1) / 2;
-    y = (display->height() + tbh1) / 2 - tbh3;
-    display->setCursor(x, y);
-    display->print(EPD_SoftRF_text1);
+      // Version / HW line at bottom
+      char buf[32];
+      snprintf(buf, sizeof(buf), "HW:%d SW:%s", hw_info.revision, SOFTRF_FIRMWARE_VERSION);
+      display->setFont(&FreeMonoBold9pt7b);
+      display->getTextBounds(buf, 0, 0, &tbx4, &tby4, &tbw4, &tbh4);
+      x = (display->width() - tbw4) / 2;
+      y = display->height() - tbh4;
+      display->setCursor(x, y);
+      display->print(buf);
+    } else {
+      // Original multi-line layout retained if strings populated
+      x = (display->width()  - tbw1) / 2;
+      y = (display->height() + tbh1) / 2 - tbh3;
+      display->setCursor(x, y);
+      display->print(EPD_SoftRF_text1);
 
-    display->setFont(&FreeMono18pt7b);
-    display->getTextBounds(EPD_SoftRF_text2, 0, 0, &tbx2, &tby2, &tbw2, &tbh2);
+      display->setFont(&FreeMono18pt7b);
+      display->getTextBounds(EPD_SoftRF_text2, 0, 0, &tbx2, &tby2, &tbw2, &tbh2);
 
-    x = (display->width()  - tbw2) / 2;
-    y = (display->height() + tbh2) / 2;
-    display->setCursor(x, y);
-    display->print(EPD_SoftRF_text2);
+      x = (display->width()  - tbw2) / 2;
+      y = (display->height() + tbh2) / 2;
+      display->setCursor(x, y);
+      display->print(EPD_SoftRF_text2);
 
-    display->setFont(&FreeMonoBold24pt7b);
+      display->setFont(&FreeMonoBold24pt7b);
 
-    x = (display->width()  - tbw3) / 2;
-    y = (display->height() + tbh3) / 2 + tbh3;
-    display->setCursor(x, y);
-    display->print(EPD_SoftRF_text3);
+      x = (display->width()  - tbw3) / 2;
+      y = (display->height() + tbh3) / 2 + tbh3;
+      display->setCursor(x, y);
+      display->print(EPD_SoftRF_text3);
 
-    char buf[32];
-//    snprintf(buf, sizeof(buf), "HW: %s SW: %s", hw_info.revision > 2 ?
-//                  Hardware_Rev[3] : Hardware_Rev[hw_info.revision],
-//                  SOFTRF_FIRMWARE_VERSION);
-    snprintf(buf, sizeof(buf), "HW:%d SW:%s",
-                  hw_info.revision,
-                  SOFTRF_FIRMWARE_VERSION);
-
-//    display->setFont(&Org_01); 
-    display->setFont(&FreeMonoBold9pt7b);
-    display->getTextBounds(buf, 0, 0, &tbx4, &tby4, &tbw4, &tbh4);
-    x = (display->width() - tbw4) / 2;
-    y = display->height() - tbh4;
-    display->setCursor(x, y);
-    display->print(buf);
-
+      char buf[32];
+      snprintf(buf, sizeof(buf), "HW:%d SW:%s", hw_info.revision, SOFTRF_FIRMWARE_VERSION);
+      display->setFont(&FreeMonoBold9pt7b);
+      display->getTextBounds(buf, 0, 0, &tbx4, &tby4, &tbw4, &tbh4);
+      x = (display->width() - tbw4) / 2;
+      y = display->height() - tbh4;
+      display->setCursor(x, y);
+      display->print(buf);
+    }
   } else {
     x = (display->width()  - tbw1) / 2;
     y = (display->height() + tbh1) / 2;
@@ -270,37 +289,37 @@ void EPD_info1()
     display->print(EPD_Display_text);
     display->print(hw_info.display != DISPLAY_NONE ? "+" : "-");
 
-    if (hw_info.model == SOFTRF_MODEL_BADGE) {
+  if (hw_info.model == SOFTRF_MODEL_HANDHELD) {
       y += (tbh + INFO_1_LINE_SPACING);
-
+  
       display->setCursor(x, y);
       display->print(EPD_RTC_text);
       display->print(hw_info.rtc != RTC_NONE ? "+" : "-");
-
+  
       y += (tbh + INFO_1_LINE_SPACING);
-
+  
       display->setCursor(x, y);
       display->print(EPD_Flash_text);
       display->print(hw_info.storage == STORAGE_FLASH ? "+" : "-");
-
+  
       y += (tbh + INFO_1_LINE_SPACING);
-
+  
       if (hw_info.baro == BARO_MODULE_NONE) {
         display->setFont(&FreeMono18pt7b);
       }
-
+  
       display->setCursor(x, y);
       display->print(EPD_Baro_text);
       display->print(hw_info.baro != BARO_MODULE_NONE ? "+" : "-");
-
+  
       y += (tbh + INFO_1_LINE_SPACING);
-
+  
       if (hw_info.imu == IMU_NONE) {
         display->setFont(&FreeMono18pt7b);
       } else {
         display->setFont(&FreeMonoBold18pt7b);
       }
-
+  
       display->setCursor(x, y);
       display->print(EPD_IMU_text);
       display->print(hw_info.imu != IMU_NONE ? "+" : "-");

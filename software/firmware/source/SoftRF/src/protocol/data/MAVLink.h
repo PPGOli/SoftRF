@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* MAVLink protocol support can be excluded at build time with -DEXCLUDE_MAVLINK */
 #if !defined(EXCLUDE_MAVLINK)
 
 #ifndef MAVLINKHELPER_H
@@ -39,5 +40,4 @@ void MAVLinkShareTraffic();
 void MAVLinkSetWiFiPower();
 
 #endif /* MAVLINKHELPER_H */
-
-#endif /* EXCLUDE_MAVLINK */
+#endif /* !EXCLUDE_MAVLINK */

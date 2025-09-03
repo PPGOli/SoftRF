@@ -1,0 +1,32 @@
+* [33m481a21e4[m[33m ([m[1;32mnRF52-Thinknode-M1[m[33m)[m Remove path/to/clean-copy folder and its contents
+* [33m9f4e294f[m Save current work
+[31m|[m *   [33m95235455[m[33m ([m[1;35mrefs/stash[m[33m)[m WIP on nRF52-Thinknode-M1: 3f3d92b2 no tx until position stored
+[31m|[m[31m/[m[33m|[m[34m\[m  
+[31m|[m [33m|[m * [33m7cd89d71[m untracked files on nRF52-Thinknode-M1: 3f3d92b2 no tx until position stored
+[31m|[m * [33m2194a53d[m index on nRF52-Thinknode-M1: 3f3d92b2 no tx until position stored
+[31m|[m[31m/[m  
+* [33m3f3d92b2[m no tx until position stored
+[34m|[m * [33m084b9647[m[33m ([m[1;31mupstream/master[m[33m, [m[1;31mupstream/HEAD[m[33m)[m [ESP32-S3] reduce M5 sleep current when able [skip ci]
+[34m|[m * [33mf41523ca[m [ESP32-S3] make use of M5 RTC component
+[34m|[m * [33mfb92f310[m [ESP32-S3] add infra to load / store M5 UI settings in EEPROM
+[34m|[m * [33m5a610eb8[m [ESP32-S3] misc. M5 UI cleanup [skip ci]
+[34m|[m * [33m22fcd16c[m [ESP32-S3] mute M5 buzzer when necessary [skip ci]
+[34m|[m * [33m2b45e2e9[m [ESP32-S3] bring up of M5 is complete [skip ci]
+[34m|[m * [33m187d0c84[m [ESP32-S3] bring up of Elecrow M5 [skip ci]
+[34m|[m * [33m6877b4ec[m [ESP32-P4] bring up of WebTop on P4 dev.kit
+[34m|[m * [33medb082bf[m [ESP32-P4] clean up of ADC feature
+[34m|[m * [33m3cdb82e4[m [ESP32-P4] clean up of ADC feature../SkyView/Platform_ESP32.cpp
+[34m|[m * [33mce5128de[m [RP2XXX] try out build with recent Pico Core 5.0.0
+[34m|[m * [33m2adb26f1[m [ESP32-C5] bring up of WebTop on C5 dev. kit [skip ci]
+[34m|[m * [33m9321c398[m [ESP32-C5] bring up of SkyView on C5 dev. kit
+[34m|[m * [33m517b666a[m [ESP32-C5] bring up of C5 dev. kit is complete
+[34m|[m * [33meb175bf3[m a fix for #190 [skip ci]
+[34m|[m * [33mb652a515[m [RK35] bring up of SkyView on Luckfox Lyra with Waveshare Pico e-Paper 2.7-inch display is complete
+[34m|[m * [33meabac9f6[m [RK35] build infra for SkyView Lyra
+[34m|[m * [33m3f8230cf[m [RPi] build SkyView Pi with LGPIO library
+[34m|[m * [33mb3bdff64[m [RPi] add EEPROM driver to SkyView Pi
+[34m|[m * [33m113ff8f5[m [RPi] add WebUI to SkyView Pi
+[34m|[m * [33m851b96fb[m [ESP32-P4] bring up of SkyView is complete
+[34m|[m * [33m01ce4b5f[m [ESP32-P4] an update of SkyView build infra [skip ci]
+[34m|[m * [33m81f41cf8[m [ESP32-P4] an update of I/O map for SkyView [skip ci]
+[34m|[m * [33maf040c02[m bring up of ESP32-P4 is complete

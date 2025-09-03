@@ -31,7 +31,7 @@
 #define MAX_TRACKING_OBJECTS    8
 #define MAX_NMEA_OBJECTS        6
 
-#define DEFAULT_SOFTRF_MODEL    SOFTRF_MODEL_BADGE
+#define DEFAULT_SOFTRF_MODEL    SOFTRF_MODEL_HANDHELD
 
 #define isValidFix()            isValidGNSSFix()
 
@@ -71,7 +71,11 @@ enum nRF52_board_id {
   NRF52_LILYGO_TECHO_REV_0,     /* 20-8-6 */
   NRF52_LILYGO_TECHO_REV_1,     /* 2020-12-12 */
   NRF52_LILYGO_TECHO_REV_2,     /* 2021-3-26 */
+  NRF52_THINKNODE_M1,           /* ThinkNode M1 Handheld (assumed nRF52840 DK derived) */
 };
+
+/* Board identifier selected at runtime in nRF52.cpp. Needed by macros below. */
+extern nRF52_board_id nRF52_board;
 
 // #define TECHO_DISPLAY_MODEL   GxEPD2_154_D67
 
@@ -144,7 +148,8 @@ struct rst_info {
 #define SOC_GPIO_LED_PCA10059_RED       _PINNUM(0,  8) // P0.08 (Red)
 #define SOC_GPIO_LED_PCA10059_BLUE      _PINNUM(0, 12) // P0.12 (Blue)
 
-#define SOC_GPIO_PIN_STATUS   (hw_info.revision == 0 ? SOC_GPIO_LED_TECHO_REV_0_GREEN : \
+#define SOC_GPIO_PIN_STATUS   (nRF52_board == NRF52_THINKNODE_M1 ? SOC_GPIO_LED_TECHO_REV_2_GREEN : \
+                               hw_info.revision == 0 ? SOC_GPIO_LED_TECHO_REV_0_GREEN : \
                                hw_info.revision == 1 ? SOC_GPIO_LED_TECHO_REV_1_GREEN : \
                                hw_info.revision == 2 ? SOC_GPIO_LED_TECHO_REV_2_GREEN : \
                                SOC_GPIO_LED_PCA10059_STATUS)
@@ -200,6 +205,12 @@ struct rst_info {
 #define SOC_GPIO_PIN_TECHO_REV_2_DIO0   _PINNUM(0, 15) // P0.15
 #define SOC_GPIO_PIN_DIO1     _PINNUM(0, 20) // P0.20
 #define SOC_GPIO_PIN_BUSY     _PINNUM(0, 17) // P0.17
+/* M1 SX1262 aliases */
+#define SOC_GPIO_PIN_M1_RST    _PINNUM(0, 25)
+#define SOC_GPIO_PIN_M1_DIO1   _PINNUM(0, 20)
+/* M1 DIO3 defined later; removing earlier duplicate to prevent redefinition warning */
+/* #define SOC_GPIO_PIN_M1_DIO3   _PINNUM(0, 21) */
+#define SOC_GPIO_PIN_M1_BUSY   _PINNUM(0, 17)
 
 #define SOC_GPIO_PIN_WB_RST   _PINNUM(1,  6) // P1.06
 #define SOC_GPIO_PIN_WB_DIO1  _PINNUM(1, 15) // P1.15
@@ -219,14 +230,27 @@ struct rst_info {
 #define SOC_GPIO_PIN_TECHO_REV_1_BUTTON SOC_GPIO_PIN_TECHO_REV_0_BUTTON
 #define SOC_GPIO_PIN_TECHO_REV_2_BUTTON SOC_GPIO_PIN_TECHO_REV_0_BUTTON
 #define SOC_GPIO_PIN_PCA10059_BUTTON    _PINNUM(1,  6) // P1.06
-#define SOC_GPIO_PIN_PAD                _PINNUM(0, 11) // P0.11
+
+/* ThinkNode M1 (from Elecrow_ThinkNode_M1.h) */
+#define SOC_GPIO_PIN_M1_BUTTON1         _PINNUM(1,  7) // P1.07 (now main BUTTON)
+#define SOC_GPIO_PIN_M1_BUTTON2         _PINNUM(1, 10) // P1.10 (now PAD equivalent)
+/* Map generic PAD macro to board-specific pin at runtime (swap roles per user request) */
+#define SOC_GPIO_PIN_PAD                (nRF52_board == NRF52_THINKNODE_M1 ? \
+                                        SOC_GPIO_PIN_M1_BUTTON2 : \
+                                        _PINNUM(0, 11)) /* TECHO PAD = P0.11 */
+#define SOC_GPIO_PIN_M1_BUTTON          SOC_GPIO_PIN_M1_BUTTON1
+/* Buzzer (Elecrow_ThinkNode_M1.h: P0.06 is free on M1; console TX moved) */
+#define SOC_GPIO_PIN_M1_BUZZER          _PINNUM(0,  6) // P0.06
 
 #define SOC_GPIO_PIN_BUTTON   (nRF52_board == NRF52_NORDIC_PCA10059 ? \
-                               SOC_GPIO_PIN_PCA10059_BUTTON :         \
+                               SOC_GPIO_PIN_PCA10059_BUTTON : \
+                               nRF52_board == NRF52_THINKNODE_M1 ? \
+                               SOC_GPIO_PIN_M1_BUTTON : \
                                SOC_GPIO_PIN_TECHO_REV_0_BUTTON)
 
 /* E-paper */
-#define SOC_GPIO_PIN_EPD_MISO _PINNUM(1,  7) // P1.07
+/* E-paper: M1 has different MISO (P0.11) than TECHO (P1.07) */
+#define SOC_GPIO_PIN_EPD_MISO (nRF52_board == NRF52_THINKNODE_M1 ? _PINNUM(0, 11) : _PINNUM(1, 7)) // P0.11 or P1.07
 #define SOC_GPIO_PIN_EPD_MOSI _PINNUM(0, 29) // P0.29
 #define SOC_GPIO_PIN_EPD_SCK  _PINNUM(0, 31) // P0.31
 #define SOC_GPIO_PIN_EPD_SS   _PINNUM(0, 30) // P0.30
@@ -236,6 +260,7 @@ struct rst_info {
 #define SOC_GPIO_PIN_EPD_BLGT _PINNUM(1, 11) // P1.11
 
 /* Power: EINK, RGB, CN1 (, RF) REV_2: FLASH, GNSS, SENSOR */
+/* Power control: identical pin on M1 */
 #define SOC_GPIO_PIN_IO_PWR   _PINNUM(0, 12) // P0.12
 /* REV_2 power: RF */
 #define SOC_GPIO_PIN_3V3_PWR  _PINNUM(0, 13) // P0.13
@@ -251,7 +276,28 @@ struct rst_info {
 #define SOC_GPIO_PIN_SFL_WP   _PINNUM(0,  7) // P0.07 (REV_1 and REV_2)
 
 /* RTC */
+/* RTC INT (same) */
 #define SOC_GPIO_PIN_R_INT    _PINNUM(0, 16) // P0.16
+
+/* Console UART: use different pins on M1 (RX=P0.09 TX=P0.10) */
+#define SOC_GPIO_PIN_CONS_M1_RX   _PINNUM(0,  9) // P0.09
+#define SOC_GPIO_PIN_CONS_M1_TX   _PINNUM(0, 10) // P0.10
+#undef SOC_GPIO_PIN_CONS_RX
+#undef SOC_GPIO_PIN_CONS_TX
+#define SOC_GPIO_PIN_CONS_RX   (nRF52_board == NRF52_THINKNODE_M1 ? SOC_GPIO_PIN_CONS_M1_RX : _PINNUM(0, 8))
+#define SOC_GPIO_PIN_CONS_TX   (nRF52_board == NRF52_THINKNODE_M1 ? SOC_GPIO_PIN_CONS_M1_TX : _PINNUM(0, 6))
+
+/* GNSS extra control lines (match original unless overridden) */
+#define SOC_GPIO_PIN_GNSS_M1_SW   _PINNUM(1,  1) // P1.01 GNSS power switch / VGPS sense
+#define SOC_GPIO_PIN_GNSS_M1_PPS  SOC_UNUSED_PIN // Not wired / TBD on M1
+
+/* Radio SX1262 additional line */
+#define SOC_GPIO_PIN_M1_DIO3      _PINNUM(0, 21) // P0.21 (if needed)
+
+/* Sense inputs on M1 */
+#define SOC_GPIO_PIN_M1_VBAT_SEN  _PINNUM(0,  8) // P0.08
+#define SOC_GPIO_PIN_M1_VUSB_SEN  _PINNUM(1,  3) // P1.03
+#define SOC_GPIO_PIN_M1_VGPS_SEN  _PINNUM(1,  1) // P1.01
 
 #define EXCLUDE_WIFI
 #define EXCLUDE_CC13XX
@@ -295,7 +341,7 @@ struct rst_info {
 //#define USE_WEBUSB_SETTINGS
 //#define USE_USB_MIDI
 //#define USE_BLE_MIDI
-//#define USE_PWM_SOUND
+#define USE_PWM_SOUND
 //#define USE_GDL90_MSL
 //#define USE_IBEACON
 //#define EXCLUDE_NUS
@@ -307,14 +353,16 @@ struct rst_info {
 //#define PFLAA_EXT1_ARGS ,Container[i].no_track,data_source,Container[i].rssi
 
 #if defined(USE_PWM_SOUND)
-#define SOC_GPIO_PIN_BUZZER   (hw_info.rf != RF_IC_SX1262 ? SOC_UNUSED_PIN           : \
+/* For ThinkNode M1 use dedicated buzzer pin; keep original mapping for SX1262 based T-Echo revisions */
+#define SOC_GPIO_PIN_BUZZER   (nRF52_board == NRF52_THINKNODE_M1 ? SOC_GPIO_PIN_M1_BUZZER : \
+                               (hw_info.rf != RF_IC_SX1262 ? SOC_UNUSED_PIN           : \
                                hw_info.revision == 1 ? SOC_GPIO_PIN_TECHO_REV_1_DIO0 : \
                                hw_info.revision == 2 ? SOC_GPIO_PIN_TECHO_REV_2_DIO0 : \
-                               SOC_UNUSED_PIN)
+                               SOC_UNUSED_PIN))
 
-#define ALARM_TONE_HZ         2480 // seems to be the best value for 27 mm piezo buzzer
+#define ALARM_TONE_HZ         2480 // optimized for 27 mm piezo buzzer
 #else
-#define SOC_GPIO_PIN_BUZZER   SOC_UNUSED_PIN
+#define SOC_GPIO_PIN_BUZZER   (nRF52_board == NRF52_THINKNODE_M1 ? SOC_GPIO_PIN_M1_BUZZER : SOC_UNUSED_PIN)
 #endif /* USE_PWM_SOUND */
 
 #if !defined(EXCLUDE_LED_RING)

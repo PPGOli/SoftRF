@@ -86,7 +86,9 @@
 #include "src/driver/Settings.h"
 #include "src/driver/Battery.h"
 #include "src/driver/Filesys.h"
+#if !defined(EXCLUDE_MAVLINK)
 #include "src/protocol/data/MAVLink.h"
+#endif /* EXCLUDE_MAVLINK */
 #include "src/protocol/data/GDL90.h"
 #include "src/protocol/data/GNS5892.h"
 #include "src/protocol/data/NMEA.h"

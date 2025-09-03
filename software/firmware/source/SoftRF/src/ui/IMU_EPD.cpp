@@ -25,8 +25,9 @@
 #include "../driver/EPD.h"
 
 #include <gfxfont.h>
-#include <FreeMonoBold24pt7b.h>
-#include <FreeMonoBold12pt7b.h>
+/* Minimal local font path fix */
+#include <Fonts/FreeMonoBold24pt7b.h>
+#include <Fonts/FreeMonoBold12pt7b.h>
 
 float IMU_g = 0;
 

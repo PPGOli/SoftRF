@@ -25,7 +25,123 @@ void  Buzzer_loop()        {}
 void  Buzzer_fini()        {}
 #else
 
-#if !defined(ESP32)
+#if defined(NRF52840)
+
+/* nRF52 (ThinkNode M1) implementation using single pin + tone()/noTone() */
+
+#include "Buzzer.h"
+#include "Settings.h"
+#include "OLED.h"
+
+/* need this for the alarm levels enum: */
+#include "../protocol/radio/Legacy.h"
+
+static uint32_t BuzzerTimeMarker = 0;
+static uint8_t BuzzerBeeps = 0;     /* how many beeps to go */
+static uint8_t BuzzerBeep  = 0;     /* how many beeps done */
+static uint8_t BuzzerState = 0;     /* 1 = buzzing */
+static bool double_beep = false;
+static uint16_t BuzzerToneHz = 0;    /* variable tone */
+static uint16_t BuzzerBeepMS = 0;    /* how long each beep */
+static uint8_t buzzerPin = SOC_UNUSED_PIN;
+
+void Buzzer_setup(void)
+{
+  buzzerPin = SOC_GPIO_PIN_BUZZER;
+  if (buzzerPin == SOC_UNUSED_PIN) { settings->volume = BUZZER_OFF; return; }
+  pinMode(buzzerPin, OUTPUT);
+  digitalWrite(buzzerPin, LOW);
+
+#if defined(FORCE_STARTUP_TONES)
+  /* Always play startup tones (hardware self-test) regardless of volume */
+  tone(buzzerPin, 440, 120);  delay(150);
+  tone(buzzerPin, 640, 120);  delay(150);
+  tone(buzzerPin, 840, 120);  delay(150);
+  tone(buzzerPin, 1040, 160); delay(200);
+  if (settings->volume == BUZZER_OFF) {
+    /* Do not initialize alarm state machine further if user volume OFF */
+    return;
+  }
+#else
+  if (settings->volume == BUZZER_OFF) return;
+  /* Startup self-test: multi-tone ascending sequence (440,640,840,1040 Hz) */
+  tone(buzzerPin, 440, 120);  delay(150);
+  tone(buzzerPin, 640, 120);  delay(150);
+  tone(buzzerPin, 840, 120);  delay(150);
+  tone(buzzerPin, 1040, 160); delay(200);
+#endif
+
+  BuzzerToneHz = 0;
+  BuzzerBeepMS = 0;
+  BuzzerBeeps = 0;
+  BuzzerState = 0;
+  BuzzerTimeMarker = 0;
+  double_beep = false;
+}
+
+bool Buzzer_Notify(int8_t alarm_level, bool multi_alarm)
+{
+  if (settings->volume == BUZZER_OFF) return false;
+  if (buzzerPin == SOC_UNUSED_PIN)    return false;
+  if (BuzzerTimeMarker != 0)          return false; /* already beeping */
+
+  double_beep = false;
+  if (alarm_level == ALARM_LEVEL_LOW) {
+    BuzzerToneHz = ALARM_TONE_HZ_LOW;
+    if (multi_alarm) { BuzzerBeepMS = ALARM_TONE_MS_LOW / 2; BuzzerBeeps = ALARM_BEEPS_LOW * 2; double_beep = true; }
+    else             { BuzzerBeepMS = ALARM_TONE_MS_LOW;    BuzzerBeeps = ALARM_BEEPS_LOW; }
+  } else if (alarm_level == ALARM_LEVEL_IMPORTANT) {
+    BuzzerToneHz = ALARM_TONE_HZ_IMPORTANT;
+    if (multi_alarm) { BuzzerBeepMS = ALARM_TONE_MS_IMPORTANT / 2; BuzzerBeeps = ALARM_BEEPS_IMPORTANT * 2; double_beep = true; }
+    else             { BuzzerBeepMS = ALARM_TONE_MS_IMPORTANT;    BuzzerBeeps = ALARM_BEEPS_IMPORTANT; }
+  } else if (alarm_level == ALARM_LEVEL_URGENT) {
+    BuzzerToneHz = ALARM_TONE_HZ_URGENT;
+    BuzzerBeepMS = ALARM_TONE_MS_URGENT;
+    BuzzerBeeps  = (multi_alarm ? ALARM_BEEPS_URGENT + 2 : ALARM_BEEPS_URGENT);
+  } else {
+    return false; /* NONE or CLOSE */
+  }
+
+  BuzzerBeep = 1; /* starting first beep */
+  tone(buzzerPin, BuzzerToneHz); /* continuous until we call noTone */
+  BuzzerState = 1;
+  BuzzerTimeMarker = millis() + BuzzerBeepMS;
+  return true;
+}
+
+void Buzzer_loop(void)
+{
+  if (settings->volume == BUZZER_OFF || buzzerPin == SOC_UNUSED_PIN) return;
+
+  if (BuzzerTimeMarker != 0 && millis() > BuzzerTimeMarker) {
+    if (BuzzerBeeps > 1) {
+      if (BuzzerState == 1) { /* end current beep */
+        noTone(buzzerPin);
+        BuzzerState = 0;
+        uint32_t gap = (double_beep && (BuzzerBeep & 1)) ? ALARM_MULTI_GAP_MS : BuzzerBeepMS;
+        BuzzerTimeMarker = millis() + gap; /* schedule next beep */
+      } else { /* start next beep */
+        tone(buzzerPin, BuzzerToneHz);
+        BuzzerState = 1;
+        --BuzzerBeeps;
+        ++BuzzerBeep;
+        BuzzerTimeMarker = millis() + BuzzerBeepMS; /* schedule gap */
+      }
+    } else { /* finished */
+      noTone(buzzerPin);
+      BuzzerTimeMarker = 0;
+    }
+  }
+}
+
+void Buzzer_fini(void)
+{
+  if (settings->volume == BUZZER_OFF || buzzerPin == SOC_UNUSED_PIN) return;
+  noTone(buzzerPin);
+  BuzzerTimeMarker = 0;
+}
+
+#elif !defined(ESP32)
 void  Buzzer_setup()       {}
 bool  Buzzer_Notify(int8_t level, bool multi_alarm) {return false;}
 void  Buzzer_loop()        {}

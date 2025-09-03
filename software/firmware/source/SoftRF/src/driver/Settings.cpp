@@ -732,14 +732,14 @@ void Settings_defaults(bool keepsome)
     settings->nmea_out    = DEST_USB;
     settings->nmea_out2   = DEST_NONE;
 #else
-    settings->nmea_out    = hw_info.model == SOFTRF_MODEL_BADGE ?
+    settings->nmea_out    = hw_info.model == SOFTRF_MODEL_HANDHELD ?
                                              DEST_BLUETOOTH :
                                           (hw_info.model == SOFTRF_MODEL_PRIME ?
                                              DEST_UDP :
                                           (hw_info.model == SOFTRF_MODEL_PRIME_MK2 ?
                                              DEST_UDP :
                                            DEST_UART));
-    settings->nmea_out2   = hw_info.model == SOFTRF_MODEL_BADGE ?
+    settings->nmea_out2   = hw_info.model == SOFTRF_MODEL_HANDHELD ?
                                              DEST_USB :
                                           (hw_info.model == SOFTRF_MODEL_PRIME ?
                                              DEST_UART :

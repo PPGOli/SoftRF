@@ -31,12 +31,13 @@
 #include "../driver/GNSS.h"
 #include "../driver/LED.h"
 #include "../driver/RF.h"
+#include "../driver/Buzzer.h"
 
 #include <protocol.h>
 #include "../protocol/radio/Legacy.h"
 
 #include <gfxfont.h>
-#include <FreeMonoBold12pt7b.h>
+#include <Fonts/FreeMonoBold12pt7b.h>
 
 
 struct set_entry
@@ -92,6 +93,14 @@ set_entry alarms[] = {
   {TRAFFIC_ALARM_DISTANCE, "Distance"},
   {TRAFFIC_ALARM_NONE,     "None"},
   {-1, NULL}
+};
+
+set_entry volumes[] = {
+    {BUZZER_OFF,          "Vol Off"},
+    {BUZZER_VOLUME_LOW,   "Vol Low"},
+    {BUZZER_VOLUME_FULL,  "Vol Full"},
+    {BUZZER_EXT,          "Vol Ext"},
+    {-1, NULL}
 };
 
 set_entry units[] = {
@@ -162,6 +171,7 @@ static int actype = 0;
 static int protocol = 0;
 static int region = 0;
 static int alarm = 0;
+static int volume_idx = 0;
 static int unit = 0;
 static int direction = 0;
 static int relay = 0;
@@ -199,6 +209,7 @@ page pages[] = {
   {&protocol, protocols, NULL, "RF", "Protocol:"},
   {&region, regions, NULL, "Frequency", "Band:"},
   {&alarm, alarms, "Collision", "Prediction", "Algorithm:"},
+    {&volume_idx, volumes, NULL, "Buzzer", "Volume:"},
   {&relay, relays, NULL, "Air", "Relay:"},
   {&unit, units, NULL, "Display", "Units:"},
   {&direction, directions, NULL, "Display", "Orientation:"},
@@ -225,6 +236,7 @@ void get_settings()
     protocol  = get_one_setting((int) settings->rf_protocol, protocols);
     region    = get_one_setting((int) settings->band, regions);
     alarm     = get_one_setting((int) settings->alarm, alarms);
+    volume_idx = get_one_setting((int) settings->volume, volumes);
     relay     = get_one_setting((int) settings->relay, relays);
     idtype    = get_one_setting((int) settings->id_method, idtypes);
     uint32_t id = settings->aircraft_id;
@@ -250,6 +262,7 @@ void EPD_chgconf_save()
     settings->alarm       = alarms[alarm].code;
     settings->relay       = relays[relay].code;
     settings->id_method   = idtypes[idtype].code;
+    settings->volume      = volumes[volume_idx].code;
     uint32_t id = id6;
     id |= (id5 << 4);
     id |= (id4 << 8);
@@ -263,6 +276,9 @@ void EPD_chgconf_save()
     if (SoC->Bluetooth_ops) { SoC->Bluetooth_ops->fini(); }
     //EEPROM_store();
     save_settings_to_file();
+    // Re-init buzzer if volume changed (simple approach)
+    Buzzer_fini();
+    Buzzer_setup();
 }
 
 /*
